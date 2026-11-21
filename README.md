@@ -51,6 +51,7 @@ server, never in a web page or mobile app.
 | `services` | `list`, `get`, `create`, `update`, `archive` |
 | `listings` | `list`, `get`, `create`, `update`, `archive` |
 | `webhooks` | `list`, `get`, `create`, `update`, `delete`, `test`, `deliveries` |
+| `whatsapp` | `createConnectLink`, `getConnectLink`, `waitForConnection`, `numbers` |
 
 Every method returns a Promise of the typed answer. Lists are special:
 
@@ -99,6 +100,36 @@ await softrivo.services.create({ name: 'Scaling and polishing', duration_minutes
 await softrivo.listings.create({ title: 'Cheras condo, 3 bed', ref_code: 'KL-102', price: '450k', bedrooms: 3, area: 'Cheras' })
 await softrivo.listings.update('…id…', { status: 'sold' })
 ```
+
+### Connect a WhatsApp number
+
+Your own key can connect numbers through Meta signup, but your app never runs
+that popup: you make a one-time link, the business owner opens it on a Softrivo
+page and finishes signup there with no login, and you read the result.
+
+```js
+// 1. Make a link and send it to the business owner.
+const link = await softrivo.whatsapp.createConnectLink({ returnUrl: 'https://yourapp.com/done' })
+console.log(link.url) // e.g. https://app.softrivo.com/connect-link#t=…  — send this to the owner
+
+// 2. Wait for them to finish (polls until done, fails or times out).
+try {
+  const session = await softrivo.whatsapp.waitForConnection(link.id, { timeoutMs: 15 * 60_000 })
+  console.log('connected:', session.result.phone_number)
+} catch (err) {
+  if (err.code === 'connect_timeout') { /* the owner did not finish in time */ }
+}
+
+// Or poll yourself:
+const session = await softrivo.whatsapp.getConnectLink(link.id) // status: pending | completed | failed | expired
+
+// 3. The connected numbers.
+const numbers = await softrivo.whatsapp.numbers()
+```
+
+With an `sk_test_` key the link is a sandbox link: the page shows a "Simulate"
+button and completes without connecting a real number, so you can build the
+whole flow before going live.
 
 ## Errors
 

@@ -153,6 +153,15 @@ if (endpoint) {
   await step('webhooks.delete', async () => (await softrivo.webhooks.delete(endpoint.data.id)).deleted)
 }
 
+// ── WhatsApp connect (hosted link) ───────────────────────────────────────────
+await step('whatsapp.numbers (sandbox -> empty)', async () => `${(await softrivo.whatsapp.numbers()).length} numbers`)
+await step('whatsapp.createConnectLink (test -> one-time url)', async () => {
+  const link = await softrivo.whatsapp.createConnectLink({ expiresInMinutes: 30 })
+  if (!link.url.includes('/connect-link#t=')) throw new Error('url has no token fragment')
+  const session = await softrivo.whatsapp.getConnectLink(link.id)
+  return `mode=${link.mode}, status=${session.status}`
+})
+
 if (server) server.close()
 console.table(rows)
 console.log(failures ? `${failures} FAILURE(S)` : 'ALL OK')

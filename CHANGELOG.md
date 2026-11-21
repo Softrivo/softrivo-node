@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 (2026-11-21)
+
+- `softrivo.whatsapp`: connect a WhatsApp number by API.
+  - `createConnectLink({ locationId?, returnUrl?, expiresInMinutes? })` returns a
+    one-time link the business owner opens to finish Meta signup, with no login.
+  - `getConnectLink(id)` reads the link's status and result.
+  - `waitForConnection(id, { timeoutMs?, intervalMs?, signal? })` polls until the
+    owner finishes, then resolves the completed session (throws on fail/expire/timeout).
+  - `numbers()` lists the business's connected numbers.
+  A test key makes a sandbox link that completes as a simulation.
+
 ## 0.1.0 (2026-11-21)
 
 First release.

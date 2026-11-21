@@ -18,7 +18,7 @@ export interface SoftrivoOptions {
 }
 
 export const DEFAULT_BASE_URL = 'https://api.softrivo.com/api/v1'
-export const VERSION = '0.1.0'
+export const VERSION = '0.2.0'
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 type Query = Record<string, string | number | boolean | undefined | null>

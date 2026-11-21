@@ -1,16 +1,22 @@
+import { SoftrivoError } from './errors.js'
 import type { ListResult, SoftrivoClient } from './client.js'
 import type {
   Appointment, AppointmentCreate, AppointmentListParams, AppointmentResult, AppointmentUpdate,
-  Archived, Availability, AvailabilityParams, Customer, CustomerListParams, Deleted,
+  Archived, Availability, AvailabilityParams, ConnectLink, ConnectLinkParams, ConnectSession,
+  Customer, CustomerListParams, Deleted,
   KnowledgeFile, KnowledgeUpload, KnowledgeUploadResult, Lead, LeadListParams,
   Listing, ListingCreate, ListingInput, ListingListParams, Message, MessageSend,
   Page, PagingParams, RequestOptions, SentMessage, Service, ServiceCreate, ServiceInput, ServiceListParams,
-  WebhookCreate, WebhookCreated, WebhookDelivery, WebhookEndpoint, WebhookTestResult, WebhookUpdate
+  WaitForConnectionOptions, WebhookCreate, WebhookCreated, WebhookDelivery, WebhookEndpoint, WebhookTestResult, WebhookUpdate, WhatsAppNumber
 } from './types.js'
 
 type Data<T> = { data: T }
 const unwrap = <T>(p: Promise<Data<T>>) => p.then(r => r.data)
 const id = (value: string) => encodeURIComponent(String(value))
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  const t = setTimeout(resolve, ms)
+  signal?.addEventListener('abort', () => { clearTimeout(t); reject(signal.reason) }, { once: true })
+})
 
 export class Appointments {
   constructor(private readonly c: SoftrivoClient) {}
@@ -101,6 +107,51 @@ export class Webhooks {
   /** Sends one signed `ping` to the endpoint now. */
   test(endpointId: string, options?: RequestOptions): Promise<WebhookTestResult> { return unwrap(this.c.post<Data<WebhookTestResult>>(`/webhooks/${id(endpointId)}/test`, undefined, options)) }
   deliveries(endpointId: string, params: PagingParams = {}, options?: RequestOptions): ListResult<WebhookDelivery> { return this.c.list<WebhookDelivery>(`/webhooks/${id(endpointId)}/deliveries`, params, options) }
+}
+
+export class Whatsapp {
+  constructor(private readonly c: SoftrivoClient) {}
+  /**
+   * Creates a one-time link the business owner opens to connect a WhatsApp
+   * number through Meta Embedded Signup, with no Softrivo login (`write:whatsapp`).
+   * Send `url` to the owner; the token is in the url and shown only here. A test
+   * key makes a sandbox link that completes as a simulation.
+   */
+  createConnectLink(params: ConnectLinkParams = {}, options?: RequestOptions): Promise<ConnectLink> {
+    const body: Record<string, unknown> = {}
+    if (params.locationId) body.location_id = params.locationId
+    if (params.returnUrl) body.return_url = params.returnUrl
+    if (params.expiresInMinutes !== undefined) body.expires_in_minutes = params.expiresInMinutes
+    return unwrap(this.c.post<Data<ConnectLink>>('/whatsapp/connect-sessions', body, options))
+  }
+  /** Reads a connect link's status and, once done, its result (`read:whatsapp`). */
+  getConnectLink(sessionId: string, options?: RequestOptions): Promise<ConnectSession> {
+    return unwrap(this.c.get<Data<ConnectSession>>(`/whatsapp/connect-sessions/${id(sessionId)}`, undefined, options))
+  }
+  /** The business's connected WhatsApp numbers (`read:whatsapp`). */
+  numbers(options?: RequestOptions): Promise<WhatsAppNumber[]> {
+    return unwrap(this.c.get<Data<WhatsAppNumber[]>>('/whatsapp/numbers', undefined, options))
+  }
+  /**
+   * Polls a connect link until the owner finishes. Resolves the completed
+   * session, or throws a SoftrivoError when it fails, expires or times out.
+   */
+  async waitForConnection(sessionId: string, options: WaitForConnectionOptions = {}): Promise<ConnectSession> {
+    const timeoutMs = Math.max(1_000, options.timeoutMs ?? 900_000)
+    const intervalMs = Math.max(500, options.intervalMs ?? 3_000)
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const session = await this.getConnectLink(sessionId, { signal: options.signal })
+      if (session.status === 'completed') return session
+      if (session.status === 'failed' || session.status === 'expired') {
+        throw new SoftrivoError({ message: `The connect link ${session.status}${session.error_code ? ` (${session.error_code})` : ''}.`, code: session.error_code || `connect_${session.status}`, status: 0 })
+      }
+      if (Date.now() + intervalMs >= deadline) {
+        throw new SoftrivoError({ message: `The number was not connected within ${timeoutMs} ms.`, code: 'connect_timeout', status: 0, retryable: true })
+      }
+      await sleep(intervalMs, options.signal)
+    }
+  }
 }
 
 export type { Page }

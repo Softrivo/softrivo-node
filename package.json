@@ -1,6 +1,6 @@
 {
   "name": "@softrivo/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Official Node.js SDK for the Softrivo API: appointments, leads, availability, customers, conversations, WhatsApp messages, knowledge files, services, listings and webhooks for your Softrivo WhatsApp assistant.",
   "license": "MIT",
   "author": "Softrivo <contact@softrivo.com> (https://softrivo.com)",

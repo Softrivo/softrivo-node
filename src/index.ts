@@ -1,5 +1,5 @@
 import { SoftrivoClient, type SoftrivoOptions } from './client.js'
-import { Appointments, AvailabilityResource, Conversations, Customers, Knowledge, Leads, Listings, Messages, Services, Webhooks } from './resources.js'
+import { Appointments, AvailabilityResource, Conversations, Customers, Knowledge, Leads, Listings, Messages, Services, Webhooks, Whatsapp } from './resources.js'
 
 /**
  * The Softrivo API client.
@@ -23,6 +23,7 @@ export class Softrivo extends SoftrivoClient {
   readonly services = new Services(this)
   readonly listings = new Listings(this)
   readonly webhooks = new Webhooks(this)
+  readonly whatsapp = new Whatsapp(this)
 
   constructor(options: SoftrivoOptions | string) {
     super(options)

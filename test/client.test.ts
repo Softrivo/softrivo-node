@@ -203,3 +203,51 @@ describe('paging', () => {
     expect(calls).toHaveLength(1)
   })
 })
+
+describe('whatsapp connect', () => {
+  test('createConnectLink maps the camelCase options and carries an Idempotency-Key', async () => {
+    const link = { id: 'cs_1', url: 'https://app.softrivo.com/connect-link#t=tok', status: 'pending', mode: 'test', location_id: null, expires_at: '2099-01-01T00:00:00Z', created_at: '2026-11-21T00:00:00Z' }
+    const { softrivo, calls } = client([json(201, { data: link })])
+    const out = await softrivo.whatsapp.createConnectLink({ locationId: 'loc-1', returnUrl: 'https://app.me/back', expiresInMinutes: 30 })
+    expect(out).toEqual(link)
+    expect(calls[0].url).toBe('https://api.softrivo.com/api/v1/whatsapp/connect-sessions')
+    expect(calls[0].init.method).toBe('POST')
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ location_id: 'loc-1', return_url: 'https://app.me/back', expires_in_minutes: 30 })
+    expect(calls[0].init.headers['Idempotency-Key']).toBeTruthy()
+  })
+
+  test('getConnectLink reads one link; numbers() unwraps the list', async () => {
+    const session = { id: 'cs_1', status: 'completed', mode: 'live', location_id: null, return_url: null, result: { connection_status: 'active', phone_number: '60123456789' }, error_code: null, expires_at: null, completed_at: '2026-11-21T00:01:00Z', created_at: '2026-11-21T00:00:00Z' }
+    const { softrivo, calls } = client([
+      json(200, { data: session }),
+      json(200, { data: [{ id: 'wa_1', phone_number: '60123456789', display_name: 'Clinic', status: 'active', is_coexistence: false, location_id: null, created_at: '2026-11-01T00:00:00Z' }], limit: 1, offset: 0, next_cursor: null }),
+    ])
+    expect(await softrivo.whatsapp.getConnectLink('cs_1')).toEqual(session)
+    expect(calls[0].url).toBe('https://api.softrivo.com/api/v1/whatsapp/connect-sessions/cs_1')
+    const numbers = await softrivo.whatsapp.numbers()
+    expect(Array.isArray(numbers)).toBe(true)
+    expect(numbers[0]).toMatchObject({ id: 'wa_1', status: 'active' })
+    expect(calls[1].url).toBe('https://api.softrivo.com/api/v1/whatsapp/numbers')
+  })
+
+  test('waitForConnection polls until completed and resolves the session', async () => {
+    const pending = { id: 'cs_1', status: 'pending', mode: 'live', location_id: null, return_url: null, result: null, error_code: null, expires_at: '2099-01-01T00:00:00Z', completed_at: null, created_at: '2026-11-21T00:00:00Z' }
+    const done = { ...pending, status: 'completed', result: { connection_status: 'active' }, completed_at: '2026-11-21T00:01:00Z' }
+    const { softrivo, calls } = client([json(200, { data: pending }), json(200, { data: done })])
+    const session = await softrivo.whatsapp.waitForConnection('cs_1', { intervalMs: 500, timeoutMs: 5000 })
+    expect(session.status).toBe('completed')
+    expect(calls).toHaveLength(2)
+  })
+
+  test('waitForConnection throws when the link fails, with its error code', async () => {
+    const failed = { id: 'cs_1', status: 'failed', mode: 'live', location_id: null, return_url: null, result: null, error_code: 'number_in_use', expires_at: null, completed_at: null, created_at: '2026-11-21T00:00:00Z' }
+    const { softrivo } = client([json(200, { data: failed })])
+    await expect(softrivo.whatsapp.waitForConnection('cs_1', { intervalMs: 500 })).rejects.toMatchObject({ code: 'number_in_use' })
+  })
+
+  test('waitForConnection throws connect_timeout when the owner never finishes', async () => {
+    const pending = { id: 'cs_1', status: 'pending', mode: 'live', location_id: null, return_url: null, result: null, error_code: null, expires_at: '2099-01-01T00:00:00Z', completed_at: null, created_at: '2026-11-21T00:00:00Z' }
+    const { softrivo } = client([json(200, { data: pending }), json(200, { data: pending }), json(200, { data: pending })])
+    await expect(softrivo.whatsapp.waitForConnection('cs_1', { intervalMs: 500, timeoutMs: 1000 })).rejects.toMatchObject({ code: 'connect_timeout' })
+  })
+})

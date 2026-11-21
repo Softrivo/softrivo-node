@@ -432,3 +432,70 @@ export interface CallEventData {
   booking: Nullable<{ saved: boolean; appointment_id: Nullable<string> }>
   ended_at: string
 }
+
+// ── WhatsApp connect (hosted connect link) ───────────────────────────────────
+
+export type ConnectSessionStatus = 'pending' | 'completing' | 'completed' | 'failed' | 'expired'
+
+export interface ConnectLinkParams {
+  /** The branch this number is for. Omit for the business's first number. */
+  locationId?: string
+  /** An https link the page offers as "Back to the app" afterwards. */
+  returnUrl?: string
+  /** How long the link works, 5–1440 minutes. Default 60. */
+  expiresInMinutes?: number
+}
+
+export interface ConnectLink {
+  id: string
+  /** The one-time link to send the owner. The token is in the fragment; it is shown only here. */
+  url: string
+  status: 'pending'
+  mode: 'live' | 'test'
+  location_id: Nullable<string>
+  expires_at: string
+  created_at: string
+}
+
+export interface ConnectSessionResult {
+  connection_status: string
+  phone_number?: Nullable<string>
+  display_name?: Nullable<string>
+  is_coexistence?: boolean
+  /** True for a sandbox (test) link. */
+  simulated?: boolean
+  warning?: string
+}
+
+export interface ConnectSession {
+  id: string
+  status: ConnectSessionStatus
+  mode: 'live' | 'test'
+  location_id: Nullable<string>
+  return_url: Nullable<string>
+  /** Safe details once completed; null until then. Never a token or WABA id. */
+  result: Nullable<ConnectSessionResult>
+  error_code: Nullable<string>
+  expires_at: Nullable<string>
+  completed_at: Nullable<string>
+  created_at: string
+}
+
+export interface WhatsAppNumber {
+  id: string
+  phone_number: Nullable<string>
+  display_name: Nullable<string>
+  status: 'active' | 'pending' | 'disconnected'
+  /** True when the number stays on the WhatsApp Business app. */
+  is_coexistence: boolean
+  location_id: Nullable<string>
+  created_at: string
+}
+
+export interface WaitForConnectionOptions {
+  /** Give up after this long. Default 900000 (15 minutes). */
+  timeoutMs?: number
+  /** How often to poll the link. Default 3000. */
+  intervalMs?: number
+  signal?: AbortSignal
+}
